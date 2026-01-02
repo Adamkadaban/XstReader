@@ -31,6 +31,19 @@ An application to view Microsoft Outlook's .ost and .pst files:
 
 More information in [XstReader.md](./XstReader.md)
 
+### XstReader.Desktop (cross-platform preview)
+
+A new Avalonia-based desktop shell that runs on Linux, macOS, and Windows:
+* Opens `.pst` or `.ost` archives using the `XstReader.Api` engine.
+* Prompts for the PST password before loading folders and messages.
+* Displays a searchable list of folders with message counts so you can confirm the archive content on non-Windows machines.
+
+To launch it on Linux (or any platform with the .NET 8 SDK installed):
+
+```bash
+dotnet run --project src/XstReader.Desktop --configuration Release
+```
+
 ### [XstExporter](./XstExporter.md)
 ![XstExporter ScreenShot](https://raw.githubusercontent.com/iluvadev/XstReader/master/docs/img/XstExporter-Screenshot01_small.png)
 
