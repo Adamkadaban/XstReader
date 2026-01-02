@@ -3,6 +3,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:XstReader.Desktop.ViewModels"
+        xmlns:md="clr-namespace:Markdown.Avalonia;assembly=Markdown.Avalonia"
         x:Class="XstReader.Desktop.Views.MainWindow"
         Title="XstReader Desktop"
         Width="900"
@@ -41,7 +42,7 @@
             <Border.BorderBrush>
                 <SolidColorBrush Color="#FFD0D5DD" />
             </Border.BorderBrush>
-            <Grid ColumnDefinitions="2*,3*" RowDefinitions="*,Auto">
+            <Grid ColumnDefinitions="2*,3*" RowDefinitions="*,Auto,*">
                 <ListBox ItemsSource="{Binding FolderEntries}"
                          SelectedItem="{Binding SelectedFolder}" Margin="0,0,8,0">
                     <ListBox.ItemTemplate>
@@ -74,11 +75,20 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
-                <ScrollViewer Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Height="140" VerticalScrollBarVisibility="Auto">
-                    <TextBlock Text="{Binding MessagePreview}"
-                               TextWrapping="Wrap"
-                               FontFamily="Consolas, Menlo, monospace" />
+                <ScrollViewer Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Height="120" VerticalScrollBarVisibility="Auto">
+                    <TextBox Text="{Binding MessageHeaders}"
+                             IsReadOnly="True"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             TextWrapping="Wrap"
+                             FontFamily="Consolas, Menlo, monospace" />
                 </ScrollViewer>
+
+                <md:MarkdownScrollViewer Grid.Row="2"
+                                          Grid.ColumnSpan="2"
+                                          Margin="0,8,0,0"
+                                          MinHeight="200"
+                                          Markdown="{Binding MessageMarkdown}" />
             </Grid>
         </Border>
 

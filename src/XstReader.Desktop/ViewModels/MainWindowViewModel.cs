@@ -3,11 +3,16 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using RtfPipe;
 using ReactiveUI;
 using XstReader;
+using XstReader.ElementProperties;
+using ReverseMarkdown;
 
 namespace XstReader.Desktop.ViewModels;
 
@@ -24,6 +29,16 @@ public class MainWindowViewModel : ReactiveObject
     private string _messagePreview = "";
     private XstFile? _currentFile;
     private CancellationTokenSource? _messageLoadCts;
+    private string _messageHeaders = string.Empty;
+    private string _messageMarkdown = DefaultMarkdown;
+
+    private const string DefaultMarkdown = "_Select a message to view._";
+    private static readonly Converter MarkdownConverter = new Converter(new Config
+    {
+        GithubFlavored = true,
+        RemoveComments = true,
+        SmartHrefHandling = true
+    });
 
     public string? PstPath
     {
@@ -70,7 +85,18 @@ public class MainWindowViewModel : ReactiveObject
             if (!ReferenceEquals(_selectedMessage, value))
             {
                 this.RaiseAndSetIfChanged(ref _selectedMessage, value);
-                MessagePreview = value is null ? string.Empty : BuildFullBody(value.Message);
+                if (value is null)
+                {
+                    MessagePreview = string.Empty;
+                    MessageHeaders = string.Empty;
+                    MessageMarkdown = DefaultMarkdown;
+                }
+                else
+                {
+                    MessagePreview = value.Preview;
+                    MessageHeaders = BuildHeaders(value.Message);
+                    MessageMarkdown = BuildMarkdown(value.Message);
+                }
             }
         }
     }
@@ -79,6 +105,18 @@ public class MainWindowViewModel : ReactiveObject
     {
         get => _messagePreview;
         private set => this.RaiseAndSetIfChanged(ref _messagePreview, value);
+    }
+
+    public string MessageHeaders
+    {
+        get => _messageHeaders;
+        private set => this.RaiseAndSetIfChanged(ref _messageHeaders, value);
+    }
+
+    public string MessageMarkdown
+    {
+        get => _messageMarkdown;
+        private set => this.RaiseAndSetIfChanged(ref _messageMarkdown, value);
     }
 
     public bool IsBusy
@@ -127,6 +165,8 @@ public class MainWindowViewModel : ReactiveObject
             SelectedFolder = null;
             SelectedMessage = null;
             MessagePreview = string.Empty;
+            MessageHeaders = string.Empty;
+            MessageMarkdown = DefaultMarkdown;
 
             var totalFolders = entries.Count;
             StatusMessage = totalFolders == 0
@@ -138,6 +178,8 @@ public class MainWindowViewModel : ReactiveObject
             FolderEntries.Clear();
             Messages.Clear();
             MessagePreview = string.Empty;
+            MessageHeaders = string.Empty;
+            MessageMarkdown = DefaultMarkdown;
             StatusMessage = ex.Message;
         }
         catch (Exception ex)
@@ -188,6 +230,8 @@ public class MainWindowViewModel : ReactiveObject
             Messages = new ObservableCollection<MessageEntry>();
             SelectedMessage = null;
             MessagePreview = string.Empty;
+            MessageHeaders = string.Empty;
+            MessageMarkdown = DefaultMarkdown;
             return;
         }
 
@@ -235,6 +279,8 @@ public class MainWindowViewModel : ReactiveObject
             Messages = new ObservableCollection<MessageEntry>();
             SelectedMessage = null;
             MessagePreview = string.Empty;
+            MessageHeaders = string.Empty;
+            MessageMarkdown = DefaultMarkdown;
             StatusMessage = $"Error loading messages: {ex.Message}";
         }
         finally
@@ -251,24 +297,12 @@ public class MainWindowViewModel : ReactiveObject
     {
         try
         {
-            var text = message.Body?.Text ?? string.Empty;
+            var text = GetPlainBodyText(message);
             return Condense(text, 200);
         }
         catch
         {
             return string.Empty;
-        }
-    }
-
-    private static string BuildFullBody(XstMessage message)
-    {
-        try
-        {
-            return message.Body?.Text ?? string.Empty;
-        }
-        catch (Exception ex)
-        {
-            return $"Unable to load body: {ex.Message}";
         }
     }
 
@@ -312,4 +346,97 @@ public class MainWindowViewModel : ReactiveObject
 
         return sb.ToString().Trim();
     }
+
+    private static string BuildHeaders(XstMessage message)
+    {
+        var sb = new StringBuilder();
+
+        void Append(string label, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return;
+            sb.Append(label).Append(':').Append(' ').AppendLine(value.Trim());
+        }
+
+        Append("Subject", message.Subject);
+        Append("From", message.From);
+        Append("To", message.To);
+        Append("Cc", message.Cc);
+        Append("Bcc", message.Bcc);
+        Append("Sent", FormatDate(message.SubmittedTime));
+        Append("Received", FormatDate(message.ReceivedTime));
+
+        var headers = message.Properties[PropertyCanonicalName.PidTagTransportMessageHeaders]?.Value as string;
+        if (!string.IsNullOrWhiteSpace(headers))
+        {
+            sb.AppendLine();
+            sb.AppendLine(headers.Trim());
+        }
+
+        return sb.ToString().Trim();
+    }
+
+    private static string BuildMarkdown(XstMessage message)
+    {
+        try
+        {
+            var body = message.Body;
+            if (body == null)
+                return DefaultMarkdown;
+
+            return body.Format switch
+            {
+                XstMessageBodyFormat.Html => ConvertHtmlToMarkdown(body.Text),
+                XstMessageBodyFormat.Rtf => ConvertHtmlToMarkdown(string.IsNullOrWhiteSpace(body.Text) ? string.Empty : Rtf.ToHtml(body.Text)),
+                _ => $"```\n{body.Text ?? string.Empty}\n```"
+            };
+        }
+        catch (Exception ex)
+        {
+            return $"```\nUnable to render body: {ex.Message}\n```";
+        }
+    }
+
+    private static string ConvertHtmlToMarkdown(string? html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+            return string.Empty;
+
+        try
+        {
+            return MarkdownConverter.Convert(html);
+        }
+        catch
+        {
+            return StripMarkup(html);
+        }
+    }
+
+    private static string GetPlainBodyText(XstMessage message)
+    {
+        var body = message.Body;
+        if (body == null || string.IsNullOrEmpty(body.Text))
+            return string.Empty;
+
+        return body.Format switch
+        {
+            XstMessageBodyFormat.Html => StripMarkup(body.Text),
+            XstMessageBodyFormat.Rtf => StripMarkup(Rtf.ToHtml(body.Text)),
+            _ => body.Text
+        } ?? string.Empty;
+    }
+
+    private static string StripMarkup(string? html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+            return string.Empty;
+
+        var withoutScripts = Regex.Replace(html, "<script.*?</script>", string.Empty, RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        var withoutStyles = Regex.Replace(withoutScripts, "<style.*?</style>", string.Empty, RegexOptions.Singleline | RegexOptions.IgnoreCase);
+        var noTags = Regex.Replace(withoutStyles, "<.*?>", " ");
+        return WebUtility.HtmlDecode(noTags);
+    }
+
+    private static string FormatDate(DateTime? date)
+        => date?.ToLocalTime().ToString("f") ?? string.Empty;
 }
