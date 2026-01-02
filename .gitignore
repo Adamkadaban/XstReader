@@ -34,3 +34,6 @@ obj
 obj
 obj
 bin
+
+# Do not commit data files used for testing
+/data
