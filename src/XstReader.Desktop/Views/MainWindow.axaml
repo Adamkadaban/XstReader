@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:XstReader.Desktop.ViewModels"
+        x:Class="XstReader.Desktop.Views.MainWindow"
+        Title="XstReader Desktop"
+        Width="900"
+        Height="600"
+        mc:Ignorable="d">
+    <Window.DataContext>
+        <vm:MainWindowViewModel />
+    </Window.DataContext>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto" ColumnDefinitions="Auto,*" Margin="16">
+        <TextBlock Text="PST File" VerticalAlignment="Center" />
+
+        <DockPanel Grid.Column="1">
+            <Button Content="Browse…"
+                    Margin="8,0,0,0"
+                    DockPanel.Dock="Right"
+                    Click="OnBrowseClick" />
+            <TextBox Text="{Binding PstPath, Mode=TwoWay}"
+                     Watermark="Select a .pst or .ost file"
+                     MinWidth="420" />
+        </DockPanel>
+
+        <TextBlock Grid.Row="1" Text="Password" VerticalAlignment="Center" />
+
+        <DockPanel Grid.Row="1" Grid.Column="1">
+            <Button Content="Open"
+                    Margin="8,0,0,0"
+                    DockPanel.Dock="Right"
+                    Click="OnOpenClick" />
+            <TextBox Text="{Binding Password, Mode=TwoWay}"
+                     Watermark="Leave blank if not required"
+                     PasswordChar="•" />
+        </DockPanel>
+
+        <Border Grid.Row="2" Grid.ColumnSpan="2" BorderThickness="1" Padding="8" CornerRadius="4">
+            <Border.BorderBrush>
+                <SolidColorBrush Color="#FFD0D5DD" />
+            </Border.BorderBrush>
+            <ListBox ItemsSource="{Binding FolderEntries}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid ColumnDefinitions="Auto,*" Margin="0,4">
+                            <Border Width="{Binding IndentWidth}" />
+                            <StackPanel Grid.Column="1" Orientation="Vertical">
+                                <TextBlock Text="{Binding Display}" />
+                                <TextBlock Text="{Binding Path}"
+                                           FontSize="12"
+                                           Foreground="#FF4A6FA5" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+
+        <TextBlock Grid.Row="3"
+                   Grid.ColumnSpan="2"
+                   Text="{Binding StatusMessage}"
+                   Foreground="#FF55606D" />
+    </Grid>
+</Window>

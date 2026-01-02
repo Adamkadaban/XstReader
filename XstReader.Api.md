@@ -33,6 +33,27 @@ public void OpenOstOrPstFile(string fileName)
 }
 ```
 
+#### Open password-protected .pst file on Linux
+```csharp
+using System;
+using System.IO;
+
+public void OpenProtectedPst()
+{
+  // Resolve the repository sample PST stored under /data
+  var pstPath = Path.Combine(AppContext.BaseDirectory, "data", "backup.pst");
+
+  // Provide the password when constructing XstFile (for example via environment configuration)
+  var password = Environment.GetEnvironmentVariable("PST_PASSWORD") ?? "Summer2023!";
+
+  using (var xstFile = new XstFile(pstPath, password))
+  {
+    Console.WriteLine($"Root folder: {xstFile.RootFolder.DisplayName}");
+  }
+}
+```
+> ⚠️ **Tip:** The password hash is validated against the message-store metadata, so supplying the wrong password throws an `XstException`. This behaviour is platform-independent and enables Linux hosts to open password-protected PST archives without Windows-specific APIs.
+
 #### Processing a Folder
 ```csharp
 public void ProcessFolder(XstFolder folder)

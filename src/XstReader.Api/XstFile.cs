@@ -13,6 +13,8 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Text;
+using XstReader.Common;
 using XstReader.ElementProperties;
 
 namespace XstReader
@@ -33,11 +35,32 @@ namespace XstReader
         private LTP _Ltp;
         internal new LTP Ltp => _Ltp ?? (_Ltp = new LTP(Ndb));
 
+        private static readonly Encoding[] PasswordEncodings = new[] { Encoding.Unicode, Encoding.UTF8, Encoding.ASCII };
+        private const UInt16 PstPasswordPropertyTag = 0x67ff;
+        private string _password;
+        private bool _passwordValidated;
+        private XstPropertySet _MessageStoreProperties;
+
         private string _FileName = null;
         /// <summary>
         /// FileName of the .pst or .ost file to read
         /// </summary>
         public string FileName { get => _FileName; set => SetFileName(value); }
+
+        /// <summary>
+        /// Optional password used to unlock message store access when the PST enforces it.
+        /// </summary>
+        public string Password
+        {
+            get => _password;
+            set
+            {
+                if (_password == value)
+                    return;
+                _password = value;
+                _passwordValidated = false;
+            }
+        }
         private void SetFileName(string fileName)
         {
             _FileName = fileName;
@@ -51,11 +74,35 @@ namespace XstReader
         }
         internal object StreamLock { get; } = new object();
 
+        private XstPropertySet MessageStoreProperties
+        {
+            get
+            {
+                if (_MessageStoreProperties == null)
+                {
+                    var messageStoreNid = new NID((uint)EnidSpecial.NID_MESSAGE_STORE);
+                    _MessageStoreProperties = new XstPropertySet(
+                        () => Ltp.ReadAllProperties(messageStoreNid),
+                        tag => Ltp.ReadProperty(messageStoreNid, tag),
+                        tag => Ltp.ContainsProperty(messageStoreNid, tag));
+                }
+
+                return _MessageStoreProperties;
+            }
+        }
+
         private XstFolder _RootFolder = null;
         /// <summary>
         /// The Root Folder of the XstFile. (Loaded when needed)
         /// </summary>
-        public XstFolder RootFolder => _RootFolder ?? (_RootFolder = new XstFolder(this, new NID(EnidSpecial.NID_ROOT_FOLDER)));
+        public XstFolder RootFolder
+        {
+            get
+            {
+                EnsurePasswordUnlocked();
+                return _RootFolder ?? (_RootFolder = new XstFolder(this, new NID(EnidSpecial.NID_ROOT_FOLDER)));
+            }
+        }
 
         /// <summary>
         /// The Path of this Element
@@ -77,11 +124,80 @@ namespace XstReader
         /// Ctor
         /// </summary>
         /// <param name="fileName">The .pst or .ost file to open</param>
-        public XstFile(string fileName) : base(XstElementType.File)
+        /// <param name="password">Optional password used to validate access when the PST message store requires it.</param>
+        public XstFile(string fileName, string password = null) : base(XstElementType.File)
         {
+            Password = password;
             FileName = fileName;
         }
         #endregion Ctor
+
+        private void EnsurePasswordUnlocked()
+        {
+            if (_passwordValidated)
+                return;
+
+            var passwordProperty = MessageStoreProperties?.Get(PstPasswordPropertyTag);
+            if (!(passwordProperty?.Value is int storedCrcValue))
+            {
+                _passwordValidated = true;
+                return;
+            }
+
+            var storedCrc = unchecked((uint)storedCrcValue);
+            if (storedCrc == 0)
+            {
+                _passwordValidated = true;
+                return;
+            }
+
+            if (string.IsNullOrEmpty(Password))
+                throw new XstException("The PST file is password protected. Set XstFile.Password before accessing its contents.");
+
+            if (!PasswordMatches(storedCrc, Password))
+                throw new XstException($"The supplied PST password is incorrect. (Expected CRC 0x{storedCrc:X8})");
+
+            _passwordValidated = true;
+        }
+
+        private static bool PasswordMatches(uint storedCrc, string password)
+        {
+            if (string.IsNullOrEmpty(password))
+                return false;
+
+            var upper = password.ToUpperInvariant();
+            bool differsByCase = !string.Equals(password, upper, StringComparison.Ordinal);
+
+            foreach (var encoding in PasswordEncodings)
+            {
+                if (TryMatch(storedCrc, password, encoding))
+                    return true;
+
+                if (differsByCase && TryMatch(storedCrc, upper, encoding))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryMatch(uint storedCrc, string value, Encoding encoding)
+        {
+            var bytes = encoding.GetBytes(value);
+            if (Crc32.Compute(bytes, 0, bytes.Length) == storedCrc)
+                return true;
+
+            var terminator = encoding.GetBytes("\0");
+            if (terminator.Length > 0)
+            {
+                var withNull = new byte[bytes.Length + terminator.Length];
+                Buffer.BlockCopy(bytes, 0, withNull, 0, bytes.Length);
+                Buffer.BlockCopy(terminator, 0, withNull, bytes.Length, terminator.Length);
+                if (Crc32.Compute(withNull, 0, withNull.Length) == storedCrc)
+                    return true;
+            }
+
+            return false;
+        }
 
         private void ClearStream()
         {
@@ -115,6 +231,9 @@ namespace XstReader
 
             _Ndb = null;
             _Ltp = null;
+            _MessageStoreProperties?.ClearContents();
+            _MessageStoreProperties = null;
+            _passwordValidated = false;
         }
 
         /// <summary>
