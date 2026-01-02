@@ -41,21 +41,45 @@
             <Border.BorderBrush>
                 <SolidColorBrush Color="#FFD0D5DD" />
             </Border.BorderBrush>
-            <ListBox ItemsSource="{Binding FolderEntries}">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Grid ColumnDefinitions="Auto,*" Margin="0,4">
-                            <Border Width="{Binding IndentWidth}" />
-                            <StackPanel Grid.Column="1" Orientation="Vertical">
-                                <TextBlock Text="{Binding Display}" />
-                                <TextBlock Text="{Binding Path}"
-                                           FontSize="12"
-                                           Foreground="#FF4A6FA5" />
+            <Grid ColumnDefinitions="2*,3*" RowDefinitions="*,Auto">
+                <ListBox ItemsSource="{Binding FolderEntries}"
+                         SelectedItem="{Binding SelectedFolder}" Margin="0,0,8,0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ColumnDefinitions="Auto,*" Margin="0,4">
+                                <Border Width="{Binding IndentWidth}" />
+                                <StackPanel Grid.Column="1" Orientation="Vertical">
+                                    <TextBlock Text="{Binding Display}" />
+                                    <TextBlock Text="{Binding Path}"
+                                               FontSize="12"
+                                               Foreground="#FF4A6FA5" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <ListBox Grid.Column="1"
+                         ItemsSource="{Binding Messages}"
+                         SelectedItem="{Binding SelectedMessage}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,4">
+                                <TextBlock Text="{Binding Subject}" FontWeight="Bold" />
+                                <TextBlock Text="{Binding Sender}" FontSize="12" />
+                                <TextBlock Text="{Binding Received, StringFormat='{}{0:G}'}" FontSize="12" Foreground="#FF667788" />
+                                <TextBlock Text="{Binding Preview}" TextWrapping="Wrap" FontSize="12" Foreground="#FF55606D" />
                             </StackPanel>
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <ScrollViewer Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Height="140" VerticalScrollBarVisibility="Auto">
+                    <TextBlock Text="{Binding MessagePreview}"
+                               TextWrapping="Wrap"
+                               FontFamily="Consolas, Menlo, monospace" />
+                </ScrollViewer>
+            </Grid>
         </Border>
 
         <TextBlock Grid.Row="3"
