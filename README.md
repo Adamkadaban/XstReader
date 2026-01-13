@@ -1,3 +1,4 @@
+# Avalonial XstReader
 To download the last version, go to [releases section](https://github.com/iluvadev/XstReader/releases)
 
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/iluvadev)
